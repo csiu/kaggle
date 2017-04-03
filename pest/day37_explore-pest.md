@@ -1,32 +1,25 @@
----
-title: "Day37: Exploring pesticide residues in food"
-output:
-  html_document:
-    keep_md: yes
----
+# Day37: Exploring pesticide residues in food
 
 I want to take a look at pesticides today. The data I use comes from Kaggle's [Pesticide Data Program (2015)](https://www.kaggle.com/usdeptofag/pesticide-data-program-2015/kernels) data set uploaded by the United States Department of Agriculture.
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  cache=TRUE,
-  fig.path="figure-html/day37/"
-  )
-```
 
-```{r load-libs, message=FALSE}
+
+
+```r
 library(dplyr)
 library(ggplot2)
 library(DBI)
 ```
 
-```{r load-data, results='hide'}
+
+```r
 con <- dbConnect(RSQLite::SQLite(), dbname="data/database.sqlite")
 results <- dbGetQuery(con, 'SELECT * FROM resultsdata15')
 dbDisconnect(con)
 ```
 
-```{r load-codes, message=FALSE, warning=FALSE}
+
+```r
 code <- NULL
 code$commod <-
   readr::read_csv("data/commodity_codes.csv",
@@ -38,34 +31,76 @@ code$commod <-
 
 Size of the data (rows, columns):
 
-```{r}
+
+```r
 dim(results)
 ```
 
-```{r}
+```
+## [1] 2333911      16
+```
+
+
+```r
 head(results) %>%
   knitr::kable()
 ```
 
+
+
+ sample_pk  commod   commtype   lab   pestcode   testclass   concen      lod  conunit   confmethod   confmethod2   annotate   quantitate   mean   extract   determin 
+----------  -------  ---------  ----  ---------  ----------  -------  ------  --------  -----------  ------------  ---------  -----------  -----  --------  ---------
+         2  AP       FR         WA1   382        E                     0.015  M                                                            ND     805       35       
+         2  AP       FR         WA1   387        A                     0.005  M                                                            ND     805       35       
+         2  AP       FR         WA1   388        A                     0.005  M                                                            ND     805       35       
+         2  AP       FR         WA1   512        E                     0.003  M                                                            ND     805       52       
+         2  AP       FR         WA1   529        A                     0.010  M                                                            ND     805       35       
+         2  AP       FR         WA1   536        C                     0.001  M                                                            ND     805       52       
+
 ### Dealing with missing data
 
-```{r process-results}
+
+```r
 # Replace empty string with NA
 results[results==""] <- NA
 ```
 
-```{r deal-with-na}
+
+```r
 # How many NAs?
 (na_in_column <-
   colSums(is.na(results))) %>%
   sort(decreasing = TRUE) %>%
   as.data.frame()
+```
 
+```
+##                   .
+## confmethod2 2333911
+## quantitate  2331898
+## annotate    2329076
+## concen      2295160
+## confmethod  2295160
+## sample_pk         0
+## commod            0
+## commtype          0
+## lab               0
+## pestcode          0
+## testclass         0
+## lod               0
+## conunit           0
+## mean              0
+## extract           0
+## determin          0
+```
+
+```r
 ## Remove columns with NAs
 results <- results[na_in_column==0]
 ```
 
-```{r}
+
+```r
 # Tidy data
 results <-
   results %>%
@@ -91,18 +126,28 @@ results <-
 
 Which commodity type has the highest level of pesticides?
 
-```{r box-commtype}
+
+```r
 # Check if the units are all the same
 results$conunit %>% unique()
+```
 
+```
+## [1] "M"
+```
+
+```r
 results %>%
   ggplot(aes(x = commtype, y = lod)) +
   geom_boxplot()
 ```
 
+![](figure-html/day37/box-commtype-1.png)<!-- -->
+
 FR = Fresh, FZ = Frozen, OT = Other
 
-```{r box-commod}
+
+```r
 select(code$commod, code, label) %>%
   right_join(results, by = c("code"="commod")) %>%
   mutate(label = ifelse(is.na(label), code, label)) %>%
@@ -117,3 +162,5 @@ select(code$commod, code, label) %>%
     axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)
   )
 ```
+
+![](figure-html/day37/box-commod-1.png)<!-- -->
