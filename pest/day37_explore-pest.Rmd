@@ -1,0 +1,116 @@
+---
+title: "Day37: Exploring pesticide residues in food"
+output:
+  html_document:
+    keep_md: yes
+---
+
+I want to take a look at pesticides today. The data I use comes from Kaggle's [Pesticide Data Program (2015)](https://www.kaggle.com/usdeptofag/pesticide-data-program-2015/kernels) data set uploaded by the United States Department of Agriculture.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+```{r load-libs, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(DBI)
+```
+
+```{r load-data, results='hide'}
+con <- dbConnect(RSQLite::SQLite(), dbname="data/database.sqlite")
+results <- dbGetQuery(con, 'SELECT * FROM resultsdata15')
+dbDisconnect(con)
+```
+
+```{r load-codes, message=FALSE, warning=FALSE}
+code <- NULL
+code$commod <-
+  readr::read_csv("data/commodity_codes.csv",
+                  col_names = c("code", "label", "sample_size"),
+                  skip = 1)
+```
+
+### Glimpse of the data
+
+Size of the data (rows, columns):
+
+```{r}
+dim(results)
+```
+
+```{r}
+head(results) %>%
+  knitr::kable()
+```
+
+### Dealing with missing data
+
+```{r process-results}
+# Replace empty string with NA
+results[results==""] <- NA
+```
+
+```{r deal-with-na}
+# How many NAs?
+(na_in_column <-
+  colSums(is.na(results))) %>%
+  sort(decreasing = TRUE) %>%
+  as.data.frame()
+
+## Remove columns with NAs
+results <- results[na_in_column==0]
+```
+
+```{r}
+# Tidy data
+results <-
+  results %>%
+  mutate(determin = gsub("[\r\n]", "", determin)) %>%
+  tbl_df()
+```
+
+### The columns
+
+- sample_pk
+- commod - COMMODITY TYPE in 2015 PDP Samples
+- commtype - COMMODITIES Sampled/Analyzed by PDP in 2015 (Fresh Product Unless Otherwise Noted)
+- lab - PDP Participating LABORATORIES in 2015
+- pestcode - Compounds (PESTICIDES) Analyzed by PDP
+- testclass - TEST (COMPOUND) CLASS in 2015 PDP Analytical Results
+- lod - Limit of Detection
+- conunit - Concentration/LOD Unit-of-Measure Code
+- mean - MEAN RESULT in 2014 PDP Analytical Results (O, A, and R indicated Positive Detections)
+- extract - EXTRACTION METHOD in 2015 PDP Analytical Results
+- determin - DETERMINATIVE METHOD in 2015 PDP Analytical Results
+
+### A simple question
+
+Which commodity type has the highest level of pesticides?
+
+```{r box-commtype}
+# Check if the units are all the same
+results$conunit %>% unique()
+
+results %>%
+  ggplot(aes(x = commtype, y = lod)) +
+  geom_boxplot()
+```
+
+FR = Fresh, FZ = Frozen, OT = Other
+
+```{r box-commod}
+select(code$commod, code, label) %>%
+  right_join(results, by = c("code"="commod")) %>%
+  mutate(label = ifelse(is.na(label), code, label)) %>%
+  plyr::rename(c("label" = "commod")) %>%
+
+  ggplot(aes(x = reorder(commod, lod, FUN=median),
+             y = lod, fill = commtype)) +
+  geom_boxplot() +
+  xlab("Commodities") +
+  ylab("Limit of Detection in Parts-per-Million") +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)
+  )
+```
