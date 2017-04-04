@@ -253,3 +253,9 @@ select(code$commod, code, label) %>%
 ```
 
 ![](figure-html/day38/refine-figure-1.png)<!-- -->
+
+
+```r
+readr::write_tsv(results, "data/day38_results.tsv")
+```
+

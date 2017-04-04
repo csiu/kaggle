@@ -202,3 +202,7 @@ select(code$commod, code, label) %>%
     axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)
   )
 ```
+
+```{r save-processed-data}
+readr::write_tsv(results, "data/day38_results.tsv")
+```
