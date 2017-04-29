@@ -2,11 +2,13 @@
 title: "Day62: Data exploration"
 author: "csiu"
 date: "April 27, 2017"
-output: html_document
+output:
+  html_document:
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.path = "figs/day63/")
 ```
 
 ```{r message=FALSE}
@@ -246,9 +248,11 @@ train_distance <-
 ```
 
 ```{r}
+#png(filename = "Rplot.png", width = 1000, height=800, res = 100)
 cor(train_distance, use = "complete.obs") %>%
   as.matrix() %>%
   pheatmap()
+#dev.off()
 ```
 
 Water, green zone, industrial, cemetery, big road seems to be far from everything else.
