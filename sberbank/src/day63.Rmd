@@ -1,0 +1,254 @@
+---
+title: "Day62: Data exploration"
+author: "csiu"
+date: "April 27, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(pheatmap)
+```
+
+```{r message=FALSE}
+# Load data
+train <- read_csv("../input/train.csv")
+
+num_samples <- nrow(train)
+num_columns <- ncol(train)
+paste("Number of samples:", num_samples, "&",
+      "Number of columns:", num_columns)
+```
+
+## How complete is the data?
+
+```{r}
+(stat_missing_data <-
+  train %>%
+  summarise_each_(funs(is.na(.) %>% sum),
+                  vars = paste0("`", colnames(train), "`")) %>%
+  gather(column_name, num_na) %>%
+  mutate(per_na = num_na/num_samples) %>%
+  filter(num_na != 0)
+) %>%
+
+  ggplot(aes(x = reorder(column_name, -num_na),
+             y = per_na)) +
+  geom_bar(stat="identity") +
+  ggtitle("Missing data") +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  ylab("Proportion of NA samples") +
+  xlab("Features") +
+  theme(axis.text.x = element_text(angle=90, hjust=1, vjust=.5))
+```
+
+```{r}
+stat_missing_data %>%
+  {nrow(.) / num_columns} %>%
+  {sprintf("Proportion of columns containing at least 1 NA: %.2f", .)}
+```
+
+### What columns are there?
+
+There are a lot of columns -- I wonder what they are. Let me try grouping the columns by name
+
+```{r}
+stat_class_type <-
+  lapply(colnames(train), function(x){class(train[[x]])}) %>%
+  unlist() %>%
+  {data.frame(
+    column_name = colnames(train),
+    class_type = .
+  )} %>%
+  arrange(class_type, column_name)
+```
+
+```{r}
+remove_column <- function(all_features, features_to_rm){
+  paste0("^", features_to_rm, "$") %>%
+  paste0(collapse = "|") %>%
+  grep(all_features, value = TRUE, invert = TRUE)
+}
+
+
+train_columns <- colnames(train) %>%
+  sort()
+
+# write_lines(train_columns, "day63_features.txt")
+
+features <- NULL
+features$sex <- 
+  grep("_female|_male|_all", train_columns, value = TRUE) %>%
+  {grep("full_all", ., value = TRUE, invert = TRUE)}
+train_columns <- remove_column(train_columns, features$sex)
+
+features$distance <-
+  grep("_km", train_columns, value = TRUE)
+train_columns <- remove_column(train_columns, features$distance)
+
+features$avg_price <-
+  grep("avg", train_columns, value = TRUE)
+train_columns <- remove_column(train_columns, features$avg_price)
+
+features$raion <-
+  grep("_raion$", train_columns, value = TRUE)
+train_columns <- remove_column(train_columns, features$raion)
+
+features$count <-
+  grep("_count_", train_columns, value = TRUE)
+train_columns <- remove_column(train_columns, features$count)
+
+features$part <-
+  grep("part", train_columns, value = TRUE)
+train_columns <- remove_column(train_columns, features$part)
+
+features$line1 <-
+  grep("1line", train_columns, value = TRUE)
+train_columns <- remove_column(train_columns, features$line1)
+
+features$sqm <-
+  grep("sqm", train_columns, value = TRUE)
+train_columns <- remove_column(train_columns, features$sqm)
+
+
+## The other columns
+lapply(train_columns, function(x){class(train[[x]])}) %>%
+  unlist() %>%
+  {data.frame(
+    column_name = train_columns,
+    class_type = .
+  )} %>%
+  arrange(class_type, column_name)
+
+features$other <- train_columns
+train_columns <- remove_column(train_columns, features$other)
+
+# train %>% select_(.dots = train_columns)
+```
+
+```{r results='asis'}
+for (name in names(features)){
+  cat(paste0("**", name, "**"))
+  cat("\n")
+  cat(features[[name]])
+  cat("\n\n")
+}
+```
+
+### Floor space
+
+I also wanted to look at full_sq and life_sq.
+
+```{r}
+train_sq <-
+  train %>%
+  select(id, ends_with("sq"), price_doc)
+
+head(train_sq)
+```
+
+```{r}
+sum(is.na(train_sq$kitch_sq)) %>%
+  {. / nrow(train_sq) * 100} %>%
+  {sprintf("Number of NAs in kitch_sq: %0.1f%%", .)}
+```
+
+
+```{r}
+train_sq %>%
+  ggplot(aes(x = full_sq, y = life_sq)) +
+  geom_point()
+```
+
+Outliers?
+
+```{r}
+train_sq_tidy <-
+  train_sq %>%
+  mutate(diff = full_sq - life_sq)
+
+## Error?
+filter(train_sq_tidy,
+       abs(diff) > 2000)
+```
+
+```{r}
+train_sq %>%
+  mutate(price_doc = price_doc/1e6) %>%
+  
+  ggplot(aes(x = full_sq, y = price_doc)) +
+  geom_point() +
+  scale_x_log10() +
+  ylab("Price per million")
+```
+
+```{r}
+train_sq %>%
+  mutate(price_doc = price_doc/1e6) %>%
+  
+  ggplot(aes(x = life_sq, y = price_doc)) +
+  geom_point() +
+  scale_x_log10() +
+  ylab("Price per million")
+```
+
+From the plots, it does not look like the outlier points (with greater floor space) have higher prices.
+
+```{r}
+train_sq_tidy <-
+  train_sq_tidy %>%
+  filter(!id %in% c("3530", "13549"))
+```
+
+```{r}
+train_sq_tidy %>%
+  ggplot(aes(x = full_sq, y = life_sq)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red")
+```
+
+As expected, full\_sq is bigger than life\_sq
+
+```{r}
+train_sq_tidy %>%
+  mutate(price_doc = price_doc/1e6) %>%
+  
+  ggplot(aes(x = full_sq, y = life_sq, color=price_doc)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  scale_color_gradient(low = "grey88", high = "red")
+```
+
+```{r}
+train_sq_tidy %>%
+  ggplot(aes(x = diff)) +
+  geom_density() +
+  coord_cartesian(xlim = c(-10, 100))
+```
+
+The difference between life and full sq is about 22 ft.
+
+### Distance
+
+The distance group seems interesting
+
+```{r}
+train_distance <-
+  train %>%
+  select_(.dots = features$distance)
+```
+
+```{r}
+cor(train_distance, use = "complete.obs") %>%
+  as.matrix() %>%
+  pheatmap()
+```
+
+Water, green zone, industrial, cemetery, big road seems to be far from everything else.
