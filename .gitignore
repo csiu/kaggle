@@ -4,3 +4,5 @@ data
 .ipynb_checkpoints
 .Rproj.user
 .DS_Store
+html
+figure-html
