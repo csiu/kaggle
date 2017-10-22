@@ -2,3 +2,5 @@
 *_submission.csv
 data
 .ipynb_checkpoints
+.Rproj.user
+.DS_Store
